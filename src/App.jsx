@@ -3,6 +3,7 @@ import SourceConfig from './components/SourceConfig.jsx';
 import DestinationConfig from './components/DestinationConfig.jsx';
 import ComparisonView from './components/ComparisonView.jsx';
 import ExportPdf from './components/ExportPdf.jsx';
+import SaveQuote from './components/SaveQuote.jsx';
 import DetailedBuilder from './components/DetailedBuilder.jsx';
 import { calculateSourceCost, calculateDestinationCost } from './utils/calculations.js';
 import { suggestComputeTiers, getAllTiersForDestination } from './utils/suggestions.js';
@@ -294,6 +295,15 @@ export default function App() {
         )}
 
         <ExportPdf
+          sources={sources}
+          sourceCosts={sourceCosts}
+          destinationCosts={destinationCosts}
+          destinations={destinations}
+          customDests={customDests}
+          customDestCosts={customDestCosts}
+          customerName={customerName}
+        />
+        <SaveQuote
           sources={sources}
           sourceCosts={sourceCosts}
           destinationCosts={destinationCosts}

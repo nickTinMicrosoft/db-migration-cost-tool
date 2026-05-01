@@ -1,0 +1,12 @@
+{
+  "name": "azure-function-savequote",
+  "version": "1.0.0",
+  "description": "Azure Function to save migration cost quotes to ADLS Gen2",
+  "main": "SaveQuote/index.js",
+  "scripts": {
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/storage-blob": "^12.17.0"
+  }
+}

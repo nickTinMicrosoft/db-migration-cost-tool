@@ -672,6 +672,48 @@ body {
   border-top: 1px solid #edebe9;
 }
 
+/* Save Quote button */
+.save-quote-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.btn-save-quote {
+  padding: 10px 20px;
+  background: #0078d4;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-save-quote:hover {
+  background: #005a9e;
+}
+
+.btn-save-quote:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.save-error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.save-success {
+  color: var(--success);
+  font-size: 13px;
+}
+
 /* Footer */
 .app-footer {
   text-align: center;
