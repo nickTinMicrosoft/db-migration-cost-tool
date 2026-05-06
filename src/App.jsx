@@ -5,6 +5,8 @@ import ComparisonView from './components/ComparisonView.jsx';
 import ExportPdf from './components/ExportPdf.jsx';
 import SaveQuote from './components/SaveQuote.jsx';
 import DetailedBuilder from './components/DetailedBuilder.jsx';
+import ArchitectureUpload from './components/ArchitectureUpload.jsx';
+import BiMigration from './components/BiMigration.jsx';
 import { calculateSourceCost, calculateDestinationCost } from './utils/calculations.js';
 import { suggestComputeTiers, getAllTiersForDestination } from './utils/suggestions.js';
 
@@ -195,8 +197,8 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🔄 Database Migration Cost Comparison</h1>
-        <p>Compare costs of migrating to Microsoft SQL platforms</p>
+        <h1>🔄 Azure Migration Cost Comparison</h1>
+        <p>Compare costs of migrating databases and BI platforms to Microsoft</p>
         <div className="pricing-notice">
           ⚠️ All pricing is estimated based on public list prices. Actual costs may vary.
           <br />Last updated: May 2026 | Region: East US / us-east-1 / us-central1
@@ -225,6 +227,9 @@ export default function App() {
         <button className={`nav-btn ${page === 2 ? 'active' : ''}`} onClick={() => setPage(2)}>
           ⚡ Quick Compare (All 3)
         </button>
+        <button className={`nav-btn ${page === 3 ? 'active' : ''}`} onClick={() => setPage(3)}>
+          📊 BI Migration
+        </button>
       </nav>
 
       <main className="app-main">
@@ -236,6 +241,13 @@ export default function App() {
                   <h2>📊 Source Environments</h2>
                   <button className="btn-add" onClick={addSource}>+ Add Source</button>
                 </div>
+                <ArchitectureUpload onSourcesDetected={(detected) => {
+                  const newSources = detected.map(d => ({
+                    ...createDefaultSource(nextSourceId++),
+                    ...d,
+                  }));
+                  setSources(prev => [...prev, ...newSources]);
+                }} />
                 {sources.map((source, index) => (
                   <SourceConfig
                     key={source.id}
@@ -269,6 +281,13 @@ export default function App() {
                   <h2>📊 Source Environments</h2>
                   <button className="btn-add" onClick={addSource}>+ Add Source</button>
                 </div>
+                <ArchitectureUpload onSourcesDetected={(detected) => {
+                  const newSources = detected.map(d => ({
+                    ...createDefaultSource(nextSourceId++),
+                    ...d,
+                  }));
+                  setSources(prev => [...prev, ...newSources]);
+                }} />
                 {sources.map((source, index) => (
                   <SourceConfig
                     key={source.id}
@@ -293,6 +312,8 @@ export default function App() {
             />
           </>
         )}
+
+        {page === 3 && <BiMigration />}
 
         <ExportPdf
           sources={sources}
