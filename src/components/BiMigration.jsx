@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { tableauPricing } from '../data/tableauPricing.js';
+import { useMemo } from 'react';
 import { powerBiPricing } from '../data/powerBiPricing.js';
+import { calculateBiMigration } from '../utils/biCalculations.js';
 
 const COMPLEXITY_OPTIONS = [
   { value: 'low', label: 'Low — Simple dashboards, standard connections' },
@@ -19,117 +19,31 @@ const POWERBI_LICENSE_OPTIONS = [
   { value: 'capacity', label: 'Fabric Capacity (F-SKU)' },
 ];
 
-export default function BiMigration() {
-  const [tableauDeployment, setTableauDeployment] = useState('server');
-  const [creators, setCreators] = useState(10);
-  const [explorers, setExplorers] = useState(50);
-  const [viewers, setViewers] = useState(200);
-  const [workbooks, setWorkbooks] = useState(50);
-  const [dataSources, setDataSources] = useState(20);
-  const [extracts, setExtracts] = useState(15);
-  const [refreshFrequency, setRefreshFrequency] = useState(8); // per day
-  const [complexity, setComplexity] = useState('medium');
-  const [powerBiLicense, setPowerBiLicense] = useState('pro');
-  const [hasM365E5, setHasM365E5] = useState(false);
-  const [selectedCapacitySku, setSelectedCapacitySku] = useState(2); // F8 index
-  const [hourlyRate, setHourlyRate] = useState(175);
-  const [useCustomTableauCost, setUseCustomTableauCost] = useState(false);
-  const [customTableauMonthlyCost, setCustomTableauMonthlyCost] = useState(0);
+export default function BiMigration({ biConfig, onBiConfigChange }) {
+  const update = (key, value) => onBiConfigChange({ ...biConfig, [key]: value });
+  const {
+    tableauDeployment, creators, explorers, viewers, workbooks,
+    dataSources, extracts, refreshFrequency, complexity, powerBiLicense,
+    hasM365E5, selectedCapacitySku, hourlyRate, useCustomTableauCost,
+    customTableauMonthlyCost,
+  } = biConfig;
+  const setTableauDeployment = v => update('tableauDeployment', v);
+  const setCreators = v => update('creators', v);
+  const setExplorers = v => update('explorers', v);
+  const setViewers = v => update('viewers', v);
+  const setWorkbooks = v => update('workbooks', v);
+  const setDataSources = v => update('dataSources', v);
+  const setExtracts = v => update('extracts', v);
+  const setRefreshFrequency = v => update('refreshFrequency', v);
+  const setComplexity = v => update('complexity', v);
+  const setPowerBiLicense = v => update('powerBiLicense', v);
+  const setHasM365E5 = v => update('hasM365E5', v);
+  const setSelectedCapacitySku = v => update('selectedCapacitySku', v);
+  const setHourlyRate = v => update('hourlyRate', v);
+  const setUseCustomTableauCost = v => update('useCustomTableauCost', v);
+  const setCustomTableauMonthlyCost = v => update('customTableauMonthlyCost', v);
 
-  const calculations = useMemo(() => {
-    const tp = tableauPricing[tableauDeployment];
-    const totalUsers = creators + explorers + viewers;
-
-    // Current Tableau cost (annual)
-    let tableauAnnualCost;
-    if (useCustomTableauCost) {
-      tableauAnnualCost = customTableauMonthlyCost * 12;
-    } else {
-      const licenseCost =
-        (creators * tp.userRoles.creator.annualPerUser) +
-        (explorers * tp.userRoles.explorer.annualPerUser) +
-        (viewers * tp.userRoles.viewer.annualPerUser);
-
-      let infraCost = 0;
-      if (tp.infrastructure) {
-        infraCost = (tp.infrastructure.estimatedServerCostPerMonth +
-          (tp.infrastructure.estimatedDbaHoursPerMonth * tp.infrastructure.estimatedDbaHourlyRate)) * 12;
-      }
-      tableauAnnualCost = licenseCost + infraCost;
-    }
-    const tableauMonthlyCost = tableauAnnualCost / 12;
-
-    // Power BI cost (annual)
-    let powerBiAnnualCost = 0;
-    let powerBiBreakdown = [];
-
-    if (powerBiLicense === 'capacity') {
-      const sku = powerBiPricing.capacity.skus[selectedCapacitySku];
-      powerBiAnnualCost = sku.monthlyCost * 12;
-      powerBiBreakdown.push({ label: `Fabric ${sku.name} Capacity`, annual: powerBiAnnualCost });
-      // Viewers still need Pro minimum for non-capacity workspaces (or use Fabric free viewers)
-      // For capacity, viewers can access without per-user license
-    } else {
-      const tier = powerBiPricing.perUser[powerBiLicense];
-      const licensedUsers = hasM365E5 && powerBiLicense === 'pro' ? 0 : totalUsers;
-      powerBiAnnualCost = licensedUsers * tier.annualPerUser;
-      if (hasM365E5 && powerBiLicense === 'pro') {
-        powerBiBreakdown.push({ label: 'Power BI Pro (included in M365 E5)', annual: 0 });
-      } else {
-        powerBiBreakdown.push({ label: `${tier.name} × ${totalUsers} users`, annual: powerBiAnnualCost });
-      }
-    }
-
-    // On-prem gateway cost
-    if (tableauDeployment === 'server') {
-      const gatewayCost = powerBiPricing.migrationCosts.powerBiGateway.infrastructureCostEstimate * 12;
-      powerBiAnnualCost += gatewayCost;
-      powerBiBreakdown.push({ label: 'On-premises Data Gateway (VM)', annual: gatewayCost });
-    }
-
-    const powerBiMonthlyCost = powerBiAnnualCost / 12;
-
-    // Migration effort
-    const effort = tableauPricing.migrationEffort;
-    const complexityKey = complexity;
-    const workbookHours = workbooks * effort.perWorkbook[complexityKey];
-    const dataSourceHours = dataSources * effort.perDataSource[complexityKey];
-    const extractHours = extracts * effort.perExtract[complexityKey];
-    const trainingHours = totalUsers * effort.trainingPerUser;
-    const subtotalHours = workbookHours + dataSourceHours + extractHours + trainingHours;
-    const testingHours = subtotalHours * effort.testingMultiplier;
-    const totalMigrationHours = subtotalHours + testingHours;
-    const migrationCost = totalMigrationHours * hourlyRate;
-
-    // Savings
-    const annualSavings = tableauAnnualCost - powerBiAnnualCost;
-    const monthlySavings = annualSavings / 12;
-    const paybackMonths = annualSavings > 0 ? Math.ceil(migrationCost / (annualSavings / 12)) : null;
-
-    return {
-      tableauMonthlyCost,
-      tableauAnnualCost,
-      powerBiMonthlyCost,
-      powerBiAnnualCost,
-      powerBiBreakdown,
-      annualSavings,
-      monthlySavings,
-      savingsPercent: tableauAnnualCost > 0 ? ((annualSavings / tableauAnnualCost) * 100).toFixed(1) : 0,
-      migration: {
-        workbookHours,
-        dataSourceHours,
-        extractHours,
-        trainingHours,
-        testingHours,
-        totalHours: totalMigrationHours,
-        totalCost: migrationCost,
-      },
-      paybackMonths,
-      totalUsers,
-    };
-  }, [tableauDeployment, creators, explorers, viewers, workbooks, dataSources, extracts,
-      refreshFrequency, complexity, powerBiLicense, hasM365E5, selectedCapacitySku,
-      hourlyRate, useCustomTableauCost, customTableauMonthlyCost]);
+  const calculations = useMemo(() => calculateBiMigration(biConfig), [biConfig]);
 
   const fmt = (n) => '$' + Math.round(n).toLocaleString();
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import SourceConfig from './components/SourceConfig.jsx';
 import DestinationConfig from './components/DestinationConfig.jsx';
 import ComparisonView from './components/ComparisonView.jsx';
@@ -9,6 +9,7 @@ import ArchitectureUpload from './components/ArchitectureUpload.jsx';
 import BiMigration from './components/BiMigration.jsx';
 import { calculateSourceCost, calculateDestinationCost } from './utils/calculations.js';
 import { suggestComputeTiers, getAllTiersForDestination } from './utils/suggestions.js';
+import { calculateBiMigration } from './utils/biCalculations.js';
 
 let nextSourceId = 2;
 let nextDestId = 1;
@@ -65,6 +66,27 @@ export default function App() {
   const [sourceCosts, setSourceCosts] = useState([]);
   const [destinationCosts, setDestinationCosts] = useState({});
   const [customDestCosts, setCustomDestCosts] = useState([]);
+
+  // BI migration state (lifted from BiMigration component)
+  const [biConfig, setBiConfig] = useState({
+    tableauDeployment: 'server',
+    creators: 10,
+    explorers: 50,
+    viewers: 200,
+    workbooks: 50,
+    dataSources: 20,
+    extracts: 15,
+    refreshFrequency: 8,
+    complexity: 'medium',
+    powerBiLicense: 'pro',
+    hasM365E5: false,
+    selectedCapacitySku: 2,
+    hourlyRate: 175,
+    useCustomTableauCost: false,
+    customTableauMonthlyCost: 0,
+  });
+
+  const biCalculations = useMemo(() => calculateBiMigration(biConfig), [biConfig]);
 
   // Source management
   const addSource = () => {
@@ -313,7 +335,7 @@ export default function App() {
           </>
         )}
 
-        {page === 3 && <BiMigration />}
+        {page === 3 && <BiMigration biConfig={biConfig} onBiConfigChange={setBiConfig} />}
 
         <ExportPdf
           sources={sources}
@@ -323,6 +345,8 @@ export default function App() {
           customDests={customDests}
           customDestCosts={customDestCosts}
           customerName={customerName}
+          biConfig={biConfig}
+          biCalculations={biCalculations}
         />
         <SaveQuote
           sources={sources}

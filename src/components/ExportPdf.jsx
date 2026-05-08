@@ -22,7 +22,7 @@ const DEST_LABELS = {
   sqlOnVm: 'SQL Server on Azure VM',
 };
 
-export default function ExportPdf({ sources, sourceCosts, destinationCosts, destinations, customDests, customDestCosts, customerName }) {
+export default function ExportPdf({ sources, sourceCosts, destinationCosts, destinations, customDests, customDestCosts, customerName, biConfig, biCalculations }) {
   const reportRef = useRef(null);
   const [exporting, setExporting] = useState(false);
 
@@ -54,7 +54,8 @@ export default function ExportPdf({ sources, sourceCosts, destinationCosts, dest
     }
   };
 
-  const canExport = totalSourceMonthly > 0 && Object.keys(destinationCosts).length > 0;
+  const hasBiData = biCalculations && biCalculations.tableauAnnualCost > 0;
+  const canExport = (totalSourceMonthly > 0 && Object.keys(destinationCosts).length > 0) || hasBiData;
 
   return (
     <>
@@ -67,7 +68,7 @@ export default function ExportPdf({ sources, sourceCosts, destinationCosts, dest
       {/* Hidden PDF report content */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
         <div ref={reportRef} className="pdf-report">
-          <h1>Database Migration Cost Comparison Report</h1>
+          <h1>{hasBiData ? 'Migration Cost Comparison Report' : 'Database Migration Cost Comparison Report'}</h1>
           {customerName && <h2 style={{ color: '#323130', border: 'none', marginTop: 4 }}>Prepared for: {customerName}</h2>}
           <p className="report-date">Generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
@@ -195,6 +196,134 @@ export default function ExportPdf({ sources, sourceCosts, destinationCosts, dest
             return (
               <div style={{ background: '#d4edda', padding: 12, borderRadius: 6, marginTop: 16 }}>
                 <strong>✅ Recommended:</strong> {DEST_LABELS[bestKey]} offers the best value with annual savings of {formatCurrency(bestSavings.amount * 12)} ({bestSavings.percentage.toFixed(1)}% reduction).
+              </div>
+            );
+          })()}
+
+          {/* BI Migration Section */}
+          {hasBiData && (
+            <>
+              <h2 style={{ borderTop: '2px solid #0078d4', paddingTop: 16, marginTop: 24 }}>BI Platform Migration: Tableau → Power BI</h2>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Platform</th>
+                    <th>Monthly Cost</th>
+                    <th>Annual Cost</th>
+                    <th>vs Current</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Tableau ({biConfig.tableauDeployment === 'server' ? 'Server' : 'Cloud'})</td>
+                    <td>{formatCurrency(biCalculations.tableauMonthlyCost)}</td>
+                    <td>{formatCurrency(biCalculations.tableauAnnualCost)}</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>Power BI / Fabric</td>
+                    <td>{formatCurrency(biCalculations.powerBiMonthlyCost)}</td>
+                    <td>{formatCurrency(biCalculations.powerBiAnnualCost)}</td>
+                    <td className={biCalculations.annualSavings > 0 ? 'savings-positive' : 'savings-negative'}>
+                      {biCalculations.annualSavings > 0
+                        ? `↓ ${biCalculations.savingsPercent}% (Save ${formatCurrency(biCalculations.annualSavings)}/yr)`
+                        : `↑ ${Math.abs(parseFloat(biCalculations.savingsPercent))}% (${formatCurrency(Math.abs(biCalculations.annualSavings))}/yr more)`
+                      }
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {biCalculations.powerBiBreakdown.length > 0 && (
+                <>
+                  <h3>Power BI Cost Breakdown</h3>
+                  <table>
+                    <thead>
+                      <tr><th>Item</th><th>Annual Cost</th></tr>
+                    </thead>
+                    <tbody>
+                      {biCalculations.powerBiBreakdown.map((item, i) => (
+                        <tr key={i}><td>{item.label}</td><td>{formatCurrency(item.annual)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              <h3>Migration Effort Estimate</h3>
+              <table>
+                <thead>
+                  <tr><th>Task</th><th>Hours</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Workbook / dashboard conversion</td><td>{Math.round(biCalculations.migration.workbookHours)}</td></tr>
+                  <tr><td>Data source migration</td><td>{Math.round(biCalculations.migration.dataSourceHours)}</td></tr>
+                  <tr><td>Extract → Dataflow / Lakehouse</td><td>{Math.round(biCalculations.migration.extractHours)}</td></tr>
+                  <tr><td>User training ({biCalculations.totalUsers} users)</td><td>{Math.round(biCalculations.migration.trainingHours)}</td></tr>
+                  <tr><td>Testing &amp; validation (30%)</td><td>{Math.round(biCalculations.migration.testingHours)}</td></tr>
+                  <tr style={{ fontWeight: 'bold', background: '#f3f2f1' }}>
+                    <td>Total effort</td><td>{Math.round(biCalculations.migration.totalHours)} hrs</td>
+                  </tr>
+                  <tr style={{ fontWeight: 'bold', background: '#f3f2f1' }}>
+                    <td>Estimated migration cost</td><td>{formatCurrency(biCalculations.migration.totalCost)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {biCalculations.paybackMonths && (
+                <div style={{ background: '#d4edda', padding: 12, borderRadius: 6, marginTop: 12 }}>
+                  <strong>💰 BI Migration ROI:</strong> Estimated payback period of ~{biCalculations.paybackMonths} months
+                  with annual savings of {formatCurrency(biCalculations.annualSavings)}.
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Combined Total Summary */}
+          {hasBiData && totalSourceMonthly > 0 && Object.keys(destinationCosts).length > 0 && (() => {
+            const bestDbOption = Object.entries(destinationCosts)
+              .filter(([, c]) => c && c.monthlyTotal > 0)
+              .sort((a, b) => a[1].monthlyTotal - b[1].monthlyTotal)[0];
+            if (!bestDbOption) return null;
+            const [bestKey, bestCost] = bestDbOption;
+            const combinedCurrentAnnual = (totalSourceMonthly * 12) + biCalculations.tableauAnnualCost;
+            const combinedTargetAnnual = bestCost.annualTotal + biCalculations.powerBiAnnualCost;
+            const combinedSavings = combinedCurrentAnnual - combinedTargetAnnual;
+            const combinedPct = combinedCurrentAnnual > 0 ? ((combinedSavings / combinedCurrentAnnual) * 100).toFixed(1) : 0;
+            return (
+              <div style={{ background: '#e8f4fd', padding: 16, borderRadius: 6, marginTop: 20, border: '1px solid #0078d4' }}>
+                <h3 style={{ margin: '0 0 8px 0', color: '#0078d4' }}>📊 Combined Migration Summary</h3>
+                <table>
+                  <thead>
+                    <tr><th>Category</th><th>Current Annual</th><th>Target Annual</th><th>Annual Savings</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Database Migration (→ {DEST_LABELS[bestKey]})</td>
+                      <td>{formatCurrency(totalSourceMonthly * 12)}</td>
+                      <td>{formatCurrency(bestCost.annualTotal)}</td>
+                      <td>{formatCurrency((totalSourceMonthly * 12) - bestCost.annualTotal)}</td>
+                    </tr>
+                    <tr>
+                      <td>BI Platform (→ Power BI)</td>
+                      <td>{formatCurrency(biCalculations.tableauAnnualCost)}</td>
+                      <td>{formatCurrency(biCalculations.powerBiAnnualCost)}</td>
+                      <td>{formatCurrency(biCalculations.annualSavings)}</td>
+                    </tr>
+                    <tr style={{ fontWeight: 'bold', background: '#f3f2f1' }}>
+                      <td>Total</td>
+                      <td>{formatCurrency(combinedCurrentAnnual)}</td>
+                      <td>{formatCurrency(combinedTargetAnnual)}</td>
+                      <td className={combinedSavings > 0 ? 'savings-positive' : 'savings-negative'}>
+                        {combinedSavings > 0
+                          ? `Save ${formatCurrency(combinedSavings)}/yr (${combinedPct}%)`
+                          : `(${formatCurrency(Math.abs(combinedSavings))}/yr more)`
+                        }
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             );
           })()}
